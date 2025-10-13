@@ -24,13 +24,10 @@ Training vs Validation Loss (plots/loss_curve.png)
 Predicted vs Actual RUL (plots/predicted_vs_actual.png)
 
 Example results:
-
 📈 MAE: 54.14
 📉 RMSE: 65.36
 ✅ Model trained and saved successfully.
 
-5. Model Saving
-
+Model Saving
 Saved the trained model in HDF5 (.h5) format inside the models/ folder.
-
 Saved plots in the plots/ directory for visualization.
