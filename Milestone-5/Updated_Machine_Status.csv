@@ -1,0 +1,15 @@
+Cycle,Predicted_RUL,Alert_Level
+1,78,Normal
+2,70,Normal
+3,65,Warning
+4,58,Warning
+5,50,Warning
+6,40,Critical
+7,35,Critical
+8,30,Critical
+9,25,Critical
+10,20,Critical
+11,15,Critical
+12,10,Critical
+13,5,Critical
+14,2,Critical
