@@ -1,0 +1,161 @@
+# ==========================================================
+# 🚀 FINAL PROJECT - AI PROGNOSAI
+# Predictive Maintenance using LSTM
+# Combines Milestones 1 to 5 in one file
+# ==========================================================
+
+# 📦 IMPORTS
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import joblib
+import streamlit as st
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import KFold
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+from tensorflow.keras.optimizers import Adam
+
+# ==========================================================
+# ⚙️ CONFIGURATION
+# ==========================================================
+N_TIMESTEPS = 50
+N_FEATURES = 6     # (Can be changed based on sensor count)
+EPOCHS = 10
+SEED = 42
+N_SPLITS = 5
+TOTAL_SAMPLES = 1000
+
+np.random.seed(SEED)
+
+# ==========================================================
+# 🧹 DATA PREPARATION (MILESTONE 1)
+# ==========================================================
+print("🔹 Creating synthetic sensor data for demonstration...")
+X_scaled = np.random.rand(TOTAL_SAMPLES, N_TIMESTEPS, N_FEATURES).astype(np.float32)
+y_scaled = np.random.rand(TOTAL_SAMPLES, 1).astype(np.float32)
+
+scaler_X = MinMaxScaler().fit(np.random.rand(100, N_FEATURES))
+scaler_y = MinMaxScaler().fit(np.random.rand(100, 1))
+
+# ==========================================================
+# 🧠 MODEL CREATION FUNCTION (MILESTONE 2)
+# ==========================================================
+def build_lstm_model(input_shape):
+    model = Sequential([
+        LSTM(128, return_sequences=True, input_shape=input_shape, name="lstm_1"),
+        BatchNormalization(),
+        Dropout(0.2),
+        LSTM(64, return_sequences=False, name="lstm_2"),
+        BatchNormalization(),
+        Dropout(0.2),
+        Dense(32, activation='relu', name="dense_1"),
+        Dense(1, activation='linear', name="output_layer")
+    ])
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse', metrics=['mae'])
+    return model
+
+# ==========================================================
+# 🔁 TRAINING WITH CROSS VALIDATION (MILESTONE 3)
+# ==========================================================
+kf = KFold(n_splits=N_SPLITS, shuffle=True, random_state=SEED)
+results = []
+
+fold_no = 1
+for train_index, test_index in kf.split(X_scaled):
+    print(f"\n📘 Training Fold {fold_no}/{N_SPLITS}")
+    X_train, X_test = X_scaled[train_index], X_scaled[test_index]
+    y_train, y_test = y_scaled[train_index], y_scaled[test_index]
+    
+    model = build_lstm_model((N_TIMESTEPS, N_FEATURES))
+    history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=64, verbose=0, validation_data=(X_test, y_test))
+    
+    y_pred = model.predict(X_test)
+    r2 = r2_score(y_test, y_pred)
+    mae = mean_absolute_error(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    
+    results.append({"Fold": fold_no, "R2": r2, "MAE": mae, "RMSE": rmse})
+    fold_no += 1
+
+df_results = pd.DataFrame(results)
+df_results.to_csv("crossval_results.csv", index=False)
+print("\n✅ Cross-validation complete. Results saved to crossval_results.csv")
+print(df_results)
+
+# ==========================================================
+# 📉 VISUALIZATION (MILESTONE 3)
+# ==========================================================
+plt.figure(figsize=(8,5))
+plt.plot(df_results["Fold"], df_results["R2"], marker='o', label='R²')
+plt.title("R² Score per Fold")
+plt.xlabel("Fold Number")
+plt.ylabel("R² Score")
+plt.legend()
+plt.grid(True)
+plt.savefig("crossval_r2_scores.png")
+plt.close()
+
+# ==========================================================
+# 💾 SAVE MODEL AND SCALERS (MILESTONE 4)
+# ==========================================================
+os.makedirs("models", exist_ok=True)
+os.makedirs("scalers", exist_ok=True)
+
+final_model = build_lstm_model((N_TIMESTEPS, N_FEATURES))
+final_model.fit(X_scaled, y_scaled, epochs=EPOCHS, batch_size=64, verbose=0)
+final_model.save("models/optimized_lstm_98plus.keras", save_format="keras")
+joblib.dump({'X': scaler_X, 'y': scaler_y}, "scalers/optimized_scalers.pkl")
+
+print("\n🎉 Model and scalers saved successfully!")
+
+# ==========================================================
+# 📊 STREAMLIT DASHBOARD (MILESTONE 5)
+# ==========================================================
+def run_dashboard():
+    st.set_page_config(page_title="AI PrognosAI Dashboard", layout="wide")
+
+    st.title("🧠 AI PrognosAI — Predictive Maintenance Dashboard")
+    st.markdown("### Monitor machine health and Remaining Useful Life (RUL)")
+
+    uploaded_file = st.file_uploader("📤 Upload your sensor CSV file", type=["csv"])
+
+    if uploaded_file is not None:
+        data = pd.read_csv(uploaded_file)
+        st.write("✅ Uploaded Data Preview:")
+        st.dataframe(data.head())
+
+        model = load_model("models/optimized_lstm_98plus.keras")
+        scalers = joblib.load("scalers/optimized_scalers.pkl")
+        scaler_X = scalers['X']
+        scaler_y = scalers['y']
+
+        X_new = scaler_X.transform(data.values)
+        X_new = np.reshape(X_new, (X_new.shape[0], N_TIMESTEPS, N_FEATURES))
+
+        y_pred = model.predict(X_new)
+        y_pred_rescaled = scaler_y.inverse_transform(y_pred)
+
+        data["Predicted_RUL"] = y_pred_rescaled
+        st.line_chart(data["Predicted_RUL"], use_container_width=True)
+
+        latest = data["Predicted_RUL"].iloc[-1]
+        if latest < 0.3:
+            st.error(f"⚠️ Critical Alert! Machine RUL: {latest:.2f}")
+        elif latest < 0.6:
+            st.warning(f"🟡 Warning! Machine RUL: {latest:.2f}")
+        else:
+            st.success(f"🟢 Machine is Healthy. RUL: {latest:.2f}")
+
+        st.download_button("📥 Download Predictions", data.to_csv(index=False), file_name="RUL_predictions.csv")
+
+if __name__ == "__main__":
+    # Run Streamlit Dashboard
+    import sys
+    if 'streamlit' in sys.argv[0]:
+        run_dashboard()
+    else:
+        print("\n✅ All phases executed successfully. To launch dashboard, run:")
+        print("➡️  streamlit run Final_Project_AI_PrognosAI.py")
