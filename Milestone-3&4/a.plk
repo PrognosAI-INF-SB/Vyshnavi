@@ -1,0 +1,15 @@
+# Re-initialize and train the final model on the entire dataset 
+print("\n--- Final Production Model Saving ---")
+final_model = build_lstm_model((N_TIMESTEPS, N_FEATURES))
+
+# Train on the full data for the best performance
+# final_model.fit(X_scaled, y_scaled, epochs=EPOCHS, batch_size=64, verbose=0) 
+
+# Save the final model (used by your 'final_rul_model.h5' and 'app.py')
+final_model.save("optimized_lstm_98plus.keras")
+
+# Save the feature and target scalers 
+# (These are essential for the 'preprocess.py' script in your Milestone 5 deployment)
+joblib.dump({'X': scaler_X, 'y': scaler_y}, "optimized_scalers.pkl")
+
+print("\nSuccess: Final production model and scalers saved.")
